@@ -8,13 +8,9 @@ segmented image, and the predicted segmented image are constructed and saved.
 """
 
 import torch
-import numpy as np
-import os
-import matplotlib.pyplot as plt
-from torch.utils.data import DataLoader
-from modules import ImprovedUNet
-from dataset import load_prostate_data
 from torch.functional import F
+from torch.utils.data import DataLoader
+
 
 
 def dice_score(pred, target, num_classes: int = 6, epsilon: float = 1e-6):
