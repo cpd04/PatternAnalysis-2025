@@ -125,9 +125,9 @@ class ImprovedUNet(nn.Module):
             self.localisation_layers.append(LocalisationModule(feature, int(feature/2)))
 
         # Segmentation layers
-        self.segmentation_layer_3 = SegmentationLayer(64, 6)
-        self.segmentation_layer_2 = SegmentationLayer(32, 6)
-        self.segmentation_layer_1 = SegmentationLayer(32, 6)
+        self.segmentation_layer_3 = SegmentationLayer(64, out_channels)
+        self.segmentation_layer_2 = SegmentationLayer(32, out_channels)
+        self.segmentation_layer_1 = SegmentationLayer(32, out_channels)
         
         self.segmentation_layer_3_upsample = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
 

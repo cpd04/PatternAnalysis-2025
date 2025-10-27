@@ -11,7 +11,6 @@ model and it's results are saved and logged for comparison.
 """
 
 # Incoporate WAND during training to get good visualisation of errors
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -78,7 +77,7 @@ def train_model():
                                                             batch_size=BATCH_SIZE)
     
     # Initialize the model, loss function, and optimizer
-    model = ImprovedUNet(in_channels=1, out_channels=6).to(device)
+    model = ImprovedUNet(in_channels=1, out_channels=6).to(device, dtype=torch.float16)
     criterion = SoftDiceLoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
@@ -86,9 +85,6 @@ def train_model():
     print("Training uNet...")
 
     for epoch in range(EPOCHS):
-        # Begin the epoch
-        print(f"Epoch {epoch+1}/{EPOCHS}")
-
         # Set the model to training mode
         model.train()
         total_loss = 0
