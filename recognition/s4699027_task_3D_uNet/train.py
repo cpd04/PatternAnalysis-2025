@@ -9,3 +9,5 @@ model and it's results are saved and logged for comparison.
 
 @author Connor Davis
 """
+
+# Incoporate WAND during training to get good visualisation of errors
