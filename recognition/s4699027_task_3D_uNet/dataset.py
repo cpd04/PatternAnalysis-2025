@@ -204,8 +204,4 @@ def load_prostate_data(data_file_path, train_data=1, validation_data=1,
         test_data_loader = create_loader(x_test_names, y_test_names, batch_size=batch_size, shuffle=False)
         loaders[2] = test_data_loader
 
-    return loaders
-
-if __name__ == "__main__":
-    data_path = os.path.join(os.path.dirname(__file__), "data", "HipMRI_study_complete_release_v1")
-    train_loader, validation_loader, test_loader = load_prostate_data(data_path, train_data=1, validation_data=0, test_data=0, train_split=0.01)
+    return loaders    
