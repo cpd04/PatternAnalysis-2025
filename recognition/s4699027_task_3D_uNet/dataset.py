@@ -107,8 +107,35 @@ def load_data_3D(imageNames, normImage=False, categorical=False,
     else:
         return images
 
-def load_prostate_data(data_file_path, train_data=1, test_data=1, train_split=0.7,
-                       validate_split=0.15, batch_size=32):
+def create_loader(image_list, label_list, batch_size=4, shuffle=True):
+    '''
+    Load specific data for testing purposes.
+    '''
+    
+    # Begin loading of data    
+    images = torch.from_numpy(load_data_3D(image_list, normImage=True,
+                                           dtype=np.float16)).to(torch.float16)
+    labels = torch.from_numpy(load_data_3D(label_list, categorical=True,
+                                           dtype=np.uint8)).to(torch.uint8)
+
+    # Add an additional channel dimension for labels for the format (N, C, D, H, W )
+    images = images[:, torch.newaxis, :, :, :]
+    labels = labels.permute(0, 4, 1, 2, 3)
+
+    print(f"Loaded {len(images)} images and {len(labels)} labels successfully")
+    print(f"Image tensor shape: {images.shape}, Label tensor shape: {labels.shape}")
+
+    # Develop the data loader
+    num_total = len(images) 
+    dataset = TensorDataset(images, labels)
+    loader = DataLoader(dataset=dataset, batch_size=batch_size, 
+                              shuffle=shuffle)
+    
+    return loader
+
+def load_prostate_data(data_file_path, train_data=1, validation_data=1, 
+                       test_data=1, train_split=0.7, validation_split=0.15,
+                        batch_size=4):
     '''
     Load the prostate MRI data in the NIFTI format for training and testing. Data
     is augmented appropriately for better generalisation performance. 
@@ -119,15 +146,16 @@ def load_prostate_data(data_file_path, train_data=1, test_data=1, train_split=0.
     '''
 
     # Initialise train, validation, and test sets
-    x_train = []
-    x_validate = []
-    x_test = []
+    x_train_names = []
+    y_train_names = []
+    x_validate_names = []
+    y_validate_names = []
+    x_test_names = []
+    y_test_names = []
     
     # Data augmentation (might also want to shuffle):
     # Flip data
     # Rotate data
-    # Scale data
-    # Normalise data (done in the import function)
 
     # Directory path information
     image_file_path = "/semantic_MRs_anon/"
@@ -140,6 +168,7 @@ def load_prostate_data(data_file_path, train_data=1, test_data=1, train_split=0.
     image_list = []
     label_list = []
 
+    # Load all file names
     for file in sorted(os.listdir(data_image_directory)):
         filename = os.fsdecode(file)
         if filename.endswith(".nii.gz"):
@@ -149,48 +178,34 @@ def load_prostate_data(data_file_path, train_data=1, test_data=1, train_split=0.
         filename = os.fsdecode(file)
         if filename.endswith(".nii.gz"):
             label_list.append(os.path.join(data_file_path + label_file_path, filename))
+    
+    # Load the data into memory
+    loaders = [None, None, None]
 
-    # Load both data and labels
-    print("Loading prostate MRI data...")
-    images = torch.from_numpy(load_data_3D(image_list, normImage=True, 
-                                           early_stop=True)).to(torch.float32)
-    labels = torch.from_numpy(load_data_3D(label_list, categorical=True,
-                                           dtype=np.uint8, early_stop=True)
-                                           ).to(torch.uint8)
+    # Generate each of the seperate data loaders
+    if train_data:
+        print("Loading training data...")
+        x_train_names.extend(image_list[:int(train_split * len(image_list))])
+        y_train_names.extend(label_list[:int(train_split * len(label_list))])
+        train_loader = create_loader(x_train_names, y_train_names, batch_size=batch_size, shuffle=True)
+        loaders[0] = train_loader
 
-    # Add an additional channel dimension for labels for the format (N, C, D, H, W )
-    images = images[:, torch.newaxis, :, :, :]
-    labels = labels.permute(0, 4, 1, 2, 3)
+    if validation_data:
+        print("Loading validation data...")
+        x_validate_names.extend(image_list[int(train_split * len(image_list)):int((train_split + validation_split) * len(image_list))])
+        y_validate_names.extend(label_list[int(train_split * len(label_list)):int((train_split + validation_split) * len(label_list))])
+        validation_data_loader = create_loader(x_validate_names, y_validate_names, batch_size=batch_size, shuffle=True)
+        loaders[1] = validation_data_loader
 
-    print(f"Loaded {len(images)} images and {len(labels)} labels successfully")
+    if test_data:
+        print("Loading testing data...")
+        x_test_names.extend(image_list[int((train_split + validation_split) * len(image_list)):])
+        y_test_names.extend(label_list[int((train_split + validation_split) * len(label_list)):])
+        test_data_loader = create_loader(x_test_names, y_test_names, batch_size=batch_size, shuffle=False)
+        loaders[2] = test_data_loader
 
-    # Split into training, validation, and testing sets
-    num_total = len(images)
-    num_train = int(0.7 * num_total)
-    num_validate = int(0.15 * num_total)
-    num_test = num_total - num_train - num_validate
-
-    X_train_dataset = images[:num_train]
-    Y_train_dataset = labels[:num_train]
-
-    X_validate_dataset = images[num_train:num_train + num_validate]
-    Y_validate_dataset = labels[num_train:num_train + num_validate]
-
-    X_test_dataset = images[num_train + num_validate:]
-    Y_test_dataset = labels[num_train + num_validate:]
-
-    # Now make into datasets
-    train_dataset = TensorDataset(X_train_dataset, Y_train_dataset)
-    validation_dataset = TensorDataset(X_validate_dataset, Y_validate_dataset)
-    test_dataset = TensorDataset(X_test_dataset, Y_test_dataset)
-
-    # Loaders for training, validation, and testing
-    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-    validation_loader = DataLoader(dataset=validation_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
-
-    return [train_loader, validation_loader, test_loader]
+    return loaders
 
 if __name__ == "__main__":
     data_path = os.path.join(os.path.dirname(__file__), "data", "HipMRI_study_complete_release_v1")
-    load_prostate_data(data_path, train_data=1, test_data=1)
+    train_loader, validation_loader, test_loader = load_prostate_data(data_path, train_data=1, validation_data=0, test_data=0, train_split=0.01)
