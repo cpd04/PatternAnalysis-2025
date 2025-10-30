@@ -156,7 +156,7 @@ class ImprovedUNet(nn.Module):
         # Layer 5 - Up Path
         # Upsampling once [C:256->128, H:2->4, W:2->4, D:1->2]
         x = self.upsampling_layers[0](x)
-        print("Layer 5 Up", x.shape)
+        # print("Layer 5 Up", x.shape)
 
         # Layer 4 - Up Path
         # Concatenate [C:128->256, H:4->4, W:4->4, D:2->2]
@@ -165,7 +165,7 @@ class ImprovedUNet(nn.Module):
         x = torch.cat((skip_connections[1], x), dim=1)
         x = self.localisation_layers[1](x)
         x = self.upsampling_layers[1](x)
-        print("Layer 4 Up:", x.shape)
+        # print("Layer 4 Up:", x.shape)
 
         # Layer 3 - Up Path
         # Concatenate [C:64->128, H:8->8, W:8->8, D:4->4]
@@ -176,7 +176,7 @@ class ImprovedUNet(nn.Module):
         x = self.localisation_layers[2](x)
         seg_3 = self.segmentation_layer_3(x)
         x = self.upsampling_layers[2](x)
-        print("Layer 3 Up:", x.shape)
+        # print("Layer 3 Up:", x.shape)
 
         # Layer 2 - Up Path
         # Concatenate [C:32->64, H:16->16, W:16->16, D:8->8]
@@ -187,7 +187,7 @@ class ImprovedUNet(nn.Module):
         x = self.localisation_layers[3](x)
         seg_2 = self.segmentation_layer_2(x)
         x = self.upsampling_layers[3](x)
-        print("Layer 2 Up:", x.shape)
+        # print("Layer 2 Up:", x.shape)
 
         # Layer 1 - Up Path
         # Concatenate [C:16->32, H:32->32, W:32->32, D:16->16]
@@ -196,12 +196,12 @@ class ImprovedUNet(nn.Module):
         x = torch.cat((skip_connections[4], x), dim=1)
         x = self.final_conv(x)
         seg_1 = self.segmentation_layer_1(x)
-        print("Layer 1 Up:", x.shape)
+        # print("Layer 1 Up:", x.shape)
 
-        print("Combining Segmentation Layers:")
-        print("Segmentation 3:", seg_3.shape)
-        print("Segmentation 2:", seg_2.shape)
-        print("Segmentation 1:", seg_1.shape)
+        # print("Combining Segmentation Layers:")
+        # print("Segmentation 3:", seg_3.shape)
+        # print("Segmentation 2:", seg_2.shape)
+        # print("Segmentation 1:", seg_1.shape)
 
         # Upsample Segmentation Maps
         seg_3_upsampled = self.segmentation_layer_3_upsample(seg_3)
@@ -209,8 +209,8 @@ class ImprovedUNet(nn.Module):
         seg_2_3_upsampled = self.segmentation_layer_2_3_upsample(seg_2_3)
         final_seg = seg_1 + seg_2_3_upsampled
 
-        print("Final Segmentation Upsampling:")
-        print("Segmentation Upsampled:", final_seg.shape)
+        # print("Final Segmentation Upsampling:")
+        # print("Segmentation Upsampled:", final_seg.shape)
 
         # Final Convolution and Softmax
         return self.final_activation(final_seg)

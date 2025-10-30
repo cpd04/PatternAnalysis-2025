@@ -118,7 +118,7 @@ def create_loader(image_list, label_list, batch_size=4, reduced_shape=False, shu
     
     # Begin loading of data    
     images = torch.from_numpy(load_data_3D(image_list, normImage=True,
-                                           dtype=np.float32)).to(torch.float16)
+                                           dtype=np.float32)).to(torch.float32)
     labels = torch.from_numpy(load_data_3D(label_list, categorical=True,
                                            dtype=np.uint8)).to(torch.uint8)
 
