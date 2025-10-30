@@ -10,6 +10,8 @@ model and it's results are saved and logged for comparison.
 @author Connor Davis
 """
 
+# TODO: Implement ability to save model checkpoints during training
+
 # Incoporate WAND during training to get good visualisation of errors
 import torch
 import torch.nn as nn
@@ -17,8 +19,6 @@ import torch.nn.functional as F
 
 import numpy as np
 import os
-import time
-import matplotlib
 import matplotlib.pyplot as plt
 
 from modules import ImprovedUNet
@@ -28,6 +28,7 @@ from dataset import load_prostate_data
 BATCH_SIZE=4
 EPOCHS=50
 LEARNING_RATE=5e-4
+MODEL_PATH = os.path.join("./models/", f"model_checkpoint.pth")
 
 class SoftDiceLoss(nn.Module):
     # Needs to be updated with the dice loss used in the paper
@@ -48,7 +49,7 @@ class SoftDiceLoss(nn.Module):
 
         # Compute intersection and union
         intersection = (probs * targets).sum(dim=2)
-        union = probs.sum(dim=3) + targets.sum(dim=2)
+        union = probs.sum(dim=2) + targets.sum(dim=2)
 
         # Compute dice score per class and batch
         dice = (2.0 * intersection + self.smooth) / (union + self.smooth)
@@ -74,12 +75,17 @@ def train_model():
                                                             test_data=0, 
                                                             train_split=0.01, 
                                                             validation_split=0.01,
-                                                            batch_size=BATCH_SIZE)
+                                                            batch_size=BATCH_SIZE,
+                                                            debugging_mode=True)
     
     # Initialize the model, loss function, and optimizer
     model = ImprovedUNet(in_channels=1, out_channels=6).to(device, dtype=torch.float16)
     criterion = SoftDiceLoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
+    # Print model parameters
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model initialized with {total_params} trainable parameters.")
 
     # Training loop
     print("Training uNet...")

@@ -11,8 +11,6 @@ import torch
 from torch.functional import F
 from torch.utils.data import DataLoader
 
-
-
 def dice_score(pred, target, num_classes: int = 6, epsilon: float = 1e-6):
     """
     Compute Dice coefficient per class.

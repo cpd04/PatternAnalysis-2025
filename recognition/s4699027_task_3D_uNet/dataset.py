@@ -107,7 +107,7 @@ def load_data_3D(imageNames, normImage=False, categorical=False,
     else:
         return images
 
-def create_loader(image_list, label_list, batch_size=4, shuffle=True):
+def create_loader(image_list, label_list, batch_size=4, reduced_shape=False, shuffle=True):
     '''
     Load specific data for testing purposes.
     '''
@@ -122,6 +122,11 @@ def create_loader(image_list, label_list, batch_size=4, shuffle=True):
     images = images[:, torch.newaxis, :, :, :]
     labels = labels.permute(0, 4, 1, 2, 3)
 
+    # Only take the middle 64, 64, 32 variables
+    if reduced_shape:
+        images = images[:, :, 128-16:128+16, 128-16:128+16, 64-8:64+8] 
+        labels = labels[:, :, 128-16:128+16, 128-16:128+16, 64-8:64+8]
+
     print(f"Loaded {len(images)} images and {len(labels)} labels successfully")
     print(f"Image tensor shape: {images.shape}, Label tensor shape: {labels.shape}")
 
@@ -135,7 +140,7 @@ def create_loader(image_list, label_list, batch_size=4, shuffle=True):
 
 def load_prostate_data(data_file_path, train_data=1, validation_data=1, 
                        test_data=1, train_split=0.7, validation_split=0.15,
-                        batch_size=4):
+                        batch_size=4, debugging_mode=False):
     '''
     Load the prostate MRI data in the NIFTI format for training and testing. Data
     is augmented appropriately for better generalisation performance. 
@@ -187,21 +192,29 @@ def load_prostate_data(data_file_path, train_data=1, validation_data=1,
         print("Loading training data...")
         x_train_names.extend(image_list[:int(train_split * len(image_list))])
         y_train_names.extend(label_list[:int(train_split * len(label_list))])
-        train_loader = create_loader(x_train_names, y_train_names, batch_size=batch_size, shuffle=True)
+        train_loader = create_loader(x_train_names, y_train_names, 
+                                     batch_size=batch_size, reduced_shape=debugging_mode,
+                                     shuffle=True)
         loaders[0] = train_loader
 
     if validation_data:
         print("Loading validation data...")
         x_validate_names.extend(image_list[int(train_split * len(image_list)):int((train_split + validation_split) * len(image_list))])
         y_validate_names.extend(label_list[int(train_split * len(label_list)):int((train_split + validation_split) * len(label_list))])
-        validation_data_loader = create_loader(x_validate_names, y_validate_names, batch_size=batch_size, shuffle=True)
+        validation_data_loader = create_loader(x_validate_names, 
+                                               y_validate_names, 
+                                               batch_size=batch_size, 
+                                               reduced_shape=debugging_mode, 
+                                               shuffle=True)
         loaders[1] = validation_data_loader
 
     if test_data:
         print("Loading testing data...")
         x_test_names.extend(image_list[int((train_split + validation_split) * len(image_list)):])
         y_test_names.extend(label_list[int((train_split + validation_split) * len(label_list)):])
-        test_data_loader = create_loader(x_test_names, y_test_names, batch_size=batch_size, shuffle=False)
+        test_data_loader = create_loader(x_test_names, y_test_names, 
+                                         batch_size=batch_size, reduced_shape=debugging_mode,
+                                         shuffle=False)
         loaders[2] = test_data_loader
 
     return loaders    
