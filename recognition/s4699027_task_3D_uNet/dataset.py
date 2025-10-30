@@ -86,8 +86,8 @@ def load_data_3D(imageNames, normImage=False, categorical=False,
 
         if normImage:
             # ~ inImage = inImage / np . linalg . norm ( inImage )
-            # ~ inImage = 255. * inImage / inImage . max ()
-            inImage = (inImage - inImage.mean()) / inImage.std()
+            inImage = inImage / inImage.max()
+            # ~ inImage = (inImage - inImage.mean()) / inImage.std()
 
         if categorical:
             inImage = utils.to_channels(inImage)
@@ -114,7 +114,7 @@ def create_loader(image_list, label_list, batch_size=4, reduced_shape=False, shu
     
     # Begin loading of data    
     images = torch.from_numpy(load_data_3D(image_list, normImage=True,
-                                           dtype=np.float16)).to(torch.float16)
+                                           dtype=np.float32)).to(torch.float16)
     labels = torch.from_numpy(load_data_3D(label_list, categorical=True,
                                            dtype=np.uint8)).to(torch.uint8)
 
