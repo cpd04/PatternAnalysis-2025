@@ -96,7 +96,7 @@ def predict_single_image(model, loader: DataLoader, data_path: str, device: str 
     raw, segmented = next(iter(loader))
     with torch.no_grad():
         # Forward pass prediction
-        outputs = model(raw)              # (N, C, H, W)
+        outputs = model(raw.to(device))              # (N, C, H, W)
 
         print(raw.shape)
         print(segmented.shape)

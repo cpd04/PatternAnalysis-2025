@@ -28,8 +28,8 @@ import predict
 
 # Parameters for Training
 BATCH_SIZE=2
-EPOCHS=30
-LEARNING_RATE=2e-4
+EPOCHS=20
+LEARNING_RATE=4e-4
 MODEL_PATH = os.path.join("./models/", "3d_unet_model.pth")
 VISUAL_PATH_INPUTS = os.path.join("./visualisation/inputs/")
 VISUAL_PATH_OUTPUTS = os.path.join("./visualisation/outputs/")
@@ -37,17 +37,9 @@ VISUAL_PATH_OUTPUTS = os.path.join("./visualisation/outputs/")
 def visualise_inputs(loader, output_path):
     # Load the data
     data_path = os.path.join(os.path.dirname(__file__), "data", "HipMRI_study_complete_release_v1")
-    train_loader, _, _ = load_prostate_data(data_path, 
-                                            train_data=1, 
-                                            validation_data=0, 
-                                            test_data=0, 
-                                            train_split=0.01, 
-                                            validation_split=0.01,
-                                            batch_size=BATCH_SIZE,
-                                            debugging_mode=False)
     
     # Get a batch of data
-    for raw, segmented in train_loader:
+    for raw, segmented in loader:
         break
 
     # Visualise the first sample in the batch
@@ -68,7 +60,7 @@ class SoftDiceLoss(nn.Module):
     def __init__(self, smooth=1e-6):
         super(SoftDiceLoss, self).__init__()
         self.smooth = smooth
-
+    
     def forward(self, probs, targets):
         """
         probs: [B, C, D, H, W] raw network outputs (softmax applied)
@@ -100,14 +92,15 @@ def train_model():
 
     # Load the data
     data_path = os.path.join(os.path.dirname(__file__), "data", "HipMRI_study_complete_release_v1")
-    train_loader, validation_loader, _ = load_prostate_data(data_path, 
+    train_loader, validation_loader, test_loader = load_prostate_data(data_path, 
                                                             train_data=1, 
                                                             validation_data=1, 
-                                                            test_data=0, 
-                                                            train_split=0.01, 
-                                                            validation_split=0.01,
+                                                            test_data=1, 
+                                                            train_split=0.7, 
+                                                            validation_split=0.15,
                                                             batch_size=BATCH_SIZE,
-                                                            debugging_mode=True)
+                                                            downsample=True,
+                                                            debugging_mode=False)
     
     # Visualise some inputs
     visualise_inputs(train_loader, VISUAL_PATH_INPUTS)
@@ -116,6 +109,7 @@ def train_model():
     model = ImprovedUNet(in_channels=1, out_channels=6).to(device, dtype=torch.float32)
     criterion = SoftDiceLoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS, eta_min=5e-5)
 
     # Print model parameters
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -132,7 +126,7 @@ def train_model():
         # Train over batches
         for raw, segmented in train_loader:
             raw = raw.to(device, dtype=torch.float32)
-            segmented = segmented.to(device, dtype=torch.float32)
+            segmented = segmented.to(device, dtype=torch.uint8)
 
             # Forward pass
             outputs = model(raw)
@@ -155,7 +149,7 @@ def train_model():
             with torch.no_grad():
                 for val_raw, val_segmented in validation_loader:
                     val_raw = val_raw.to(device, dtype=torch.float32)
-                    val_segmented = val_segmented.to(device, dtype=torch.float32)
+                    val_segmented = val_segmented.to(device, dtype=torch.uint8)
 
                     val_outputs = model(val_raw)
                     v_loss = criterion(val_outputs, val_segmented)
@@ -167,16 +161,19 @@ def train_model():
             print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {avg_loss:.4f}, Val Loss: {val_loss:.4f}")
         else:
             print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {avg_loss:.4f}") 
+
+        # Step the scheduler
+        scheduler.step()
     
     # Save the trained model
     model_path_dir = os.path.join(os.path.dirname(__file__), MODEL_PATH)
     torch.save(model.state_dict(), model_path_dir)
 
     # Evaluate on validation set
-    predict.evaluate_unet(model, validation_loader, device=device)
+    predict.evaluate_unet(model, test_loader, device=device)
 
     # Visualise predictions on a sample image
-    predict.predict_single_image(model, validation_loader, VISUAL_PATH_OUTPUTS, device=device)
+    predict.predict_single_image(model, test_loader, VISUAL_PATH_OUTPUTS, device=device)
     
     return model
 
