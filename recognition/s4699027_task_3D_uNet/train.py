@@ -26,7 +26,7 @@ from dataset import load_prostate_data
 
 # Parameters for Training
 BATCH_SIZE=4
-EPOCHS=50
+EPOCHS=5
 LEARNING_RATE=5e-4
 MODEL_PATH = os.path.join("./models/", f"model_checkpoint.pth")
 
@@ -78,7 +78,7 @@ def train_model():
                                                             batch_size=BATCH_SIZE,
                                                             debugging_mode=True)
     
-    # Initialize the model, loss function, and optimizer
+    # Initialise the model, loss function, and optimizer
     model = ImprovedUNet(in_channels=1, out_channels=6).to(device, dtype=torch.float16)
     criterion = SoftDiceLoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -124,21 +124,17 @@ def train_model():
                     val_segmented = val_segmented.to(device, dtype=torch.float16)
 
                     val_outputs = model(val_raw)
-                    v_loss = loss(val_outputs, val_segmented)
+                    v_loss = criterion(val_outputs, val_segmented)
                     val_loss += v_loss.item() * val_raw.size(0)
 
             val_loss /= len(validation_loader.dataset)
 
         if val_loss is not None:
             print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {avg_loss:.4f}, Val Loss: {val_loss:.4f}")
-            print(f"Global Epoch {global_epoch+1}")
-            global_val_loss = val_loss
         else:
-            print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {avg_loss:.4f}")
-
-        global_epoch += 1
+            print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {avg_loss:.4f}") 
     
     return model
 
 if __name__ == "__main__":
-    train_model()
+    predictive_model = train_model()
