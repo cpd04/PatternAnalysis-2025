@@ -23,12 +23,43 @@ import matplotlib.pyplot as plt
 
 from modules import ImprovedUNet
 from dataset import load_prostate_data
+import utils
 
 # Parameters for Training
 BATCH_SIZE=4
 EPOCHS=5
 LEARNING_RATE=5e-4
 MODEL_PATH = os.path.join("./models/", f"model_checkpoint.pth")
+VISUAL_PATH = os.path.join("./visualisation/")
+
+def visualise_inputs(loader, output_path):
+    # Load the data
+    data_path = os.path.join(os.path.dirname(__file__), "data", "HipMRI_study_complete_release_v1")
+    train_loader, _, _ = load_prostate_data(data_path, 
+                                            train_data=1, 
+                                            validation_data=0, 
+                                            test_data=0, 
+                                            train_split=0.01, 
+                                            validation_split=0.01,
+                                            batch_size=BATCH_SIZE,
+                                            debugging_mode=False)
+    
+    # Get a batch of data
+    for raw, segmented in train_loader:
+        break
+
+    # Visualise the first sample in the batch
+    sample_raw = raw[0].cpu().numpy()  # Shape: (1, D, H, W)
+    sample_segmented = segmented[0]    # Shape: (C, D, H, W)
+    segmented_converted = utils.to_single_channel(sample_segmented).cpu().numpy()  # Shape: (1, D, H, W)
+
+    # Save visualisations
+    sample_raw_path = os.path.join(os.path.dirname(__file__), output_path, "sample_raw.gif")
+    sample_segmented_path = os.path.join(os.path.dirname(__file__), output_path, "sample_segmented.gif")
+
+    # Generate GIFs
+    utils.generate_gif(sample_raw, sample_raw_path, fps=50, cmap_name="viridis")
+    utils.generate_gif(segmented_converted, sample_segmented_path, fps=50, cmap_name="viridis")
 
 class SoftDiceLoss(nn.Module):
     # Needs to be updated with the dice loss used in the paper
@@ -77,6 +108,9 @@ def train_model():
                                                             validation_split=0.01,
                                                             batch_size=BATCH_SIZE,
                                                             debugging_mode=True)
+    
+    # Visualise some inputs
+    visualise_inputs(train_loader, VISUAL_PATH)
     
     # Initialise the model, loss function, and optimizer
     model = ImprovedUNet(in_channels=1, out_channels=6).to(device, dtype=torch.float16)
@@ -137,4 +171,4 @@ def train_model():
     return model
 
 if __name__ == "__main__":
-    predictive_model = train_model()
+    trained_model = train_model()

@@ -132,7 +132,6 @@ def create_loader(image_list, label_list, batch_size=4, reduced_shape=False, shu
         labels = labels[:, :, 128-16:128+16, 128-16:128+16, 64-8:64+8]
 
     print(f"Loaded {len(images)} images and {len(labels)} labels successfully")
-    print(f"Image tensor shape: {images.shape}, Label tensor shape: {labels.shape}")
 
     # Develop the data loader
     num_total = len(images) 
