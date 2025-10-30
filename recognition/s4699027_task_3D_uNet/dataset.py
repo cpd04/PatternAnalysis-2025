@@ -6,6 +6,10 @@ datasets are developed in the Nifti file format.
 @author Connor Davis
 """
 
+# Note: From the HipMRI_study codebase, it seems like the first slice of the
+# segmented data is only the background even though there are multiple values
+# in the real data. 
+
 import torch
 import numpy as np
 import os
