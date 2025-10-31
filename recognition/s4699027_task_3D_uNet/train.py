@@ -35,9 +35,6 @@ VISUAL_PATH_INPUTS = os.path.join("./visualisation/inputs/")
 VISUAL_PATH_OUTPUTS = os.path.join("./visualisation/outputs/")
 
 def visualise_inputs(loader, output_path):
-    # Load the data
-    data_path = os.path.join(os.path.dirname(__file__), "data", "HipMRI_study_complete_release_v1")
-    
     # Get a batch of data
     for raw, segmented in loader:
         break

@@ -12,6 +12,15 @@ from torch.functional import F
 from torch.utils.data import DataLoader
 import utils
 import os
+from dataset import load_prostate_data
+from modules import ImprovedUNet
+
+# Parameters for Training
+BATCH_SIZE=2
+EPOCHS=20
+LEARNING_RATE=4e-4
+MODEL_PATH = os.path.join("./models/", "3d_unet_model.pth")
+VISUAL_PATH_OUTPUTS = os.path.join("./visualisation/outputs/")
 
 def dice_score(pred, target, num_classes: int = 6, epsilon: float = 1e-6):
     """
@@ -121,3 +130,49 @@ def predict_single_image(model, loader: DataLoader, data_path: str, device: str 
         utils.combine_gifs(raw_gif_path, segmented_gif_path, pred_gif_path, out_path=combined_gif_path, fps=50)
     
     print(f"Saved prediction GIFs to {data_path}")
+
+def load_and_predict_model(model_path: str, data_path: str, visual_path: str, device: str = "cuda"):
+    """
+    Load a trained model and perform prediction on a single image.
+
+    Args:
+        model_path: path to the saved model file
+        data_path: path to save visualisations
+        loader: DataLoader for the test image
+        device: device string ("cuda" or "cpu")
+    """
+    # Load the trained model
+    model = ImprovedUNet(in_channels=1, out_channels=6).to(device)
+    checkpoint = torch.load(model_path, map_location=device)
+    model.load_state_dict(checkpoint)
+
+    print(f"Loaded model from {model_path}")
+
+    # Set model to evaluation mode
+    model.eval()
+
+    # Import test data loader
+    _, _, test_loader = load_prostate_data(data_path, 
+                                            train_data=0, 
+                                            validation_data=0, 
+                                            test_data=1, 
+                                            train_split=0.7, 
+                                            validation_split=0.15,
+                                            batch_size=BATCH_SIZE,
+                                            downsample=True,
+                                            debugging_mode=False)
+
+    # Perform prediction
+    evaluate_unet(model, test_loader, device=device)
+    predict_single_image(model, test_loader, visual_path, device=device)
+
+if __name__ == "__main__":
+    # Define paths
+    data_path = os.path.join(os.path.dirname(__file__), "data", "HipMRI_study_complete_release_v1")
+    model_path = os.path.join(os.path.dirname(__file__), MODEL_PATH)
+
+    # Set device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Load model and perform prediction
+    load_and_predict_model(model_path, data_path, VISUAL_PATH_OUTPUTS, device=device)
