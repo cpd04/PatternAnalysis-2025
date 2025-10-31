@@ -112,7 +112,7 @@ def train_model():
                                                             train_split=0.7, 
                                                             validation_split=0.15,
                                                             batch_size=BATCH_SIZE,
-                                                            downsample=False,
+                                                            downsample=True,
                                                             debugging_mode=False)
     
     # Visualise some inputs and add to W&B

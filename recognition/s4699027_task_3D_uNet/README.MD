@@ -10,6 +10,18 @@ in the test set.
 
 MAKE SURE TO COME BACK AND INCLUDE KEY RESULTS
 
+Key Results:
+Average Dice Score per class on Test Set:
+  Class 0: 0.9968
+  Class 1: 0.9795
+  Class 2: 0.8630
+  Class 3: 0.9134
+  Class 4: 0.8394
+  Class 5: 0.8434
+
+Visualised results for Test Set
+![Test Set Image](./assets/test_set_1.gif)
+
 ## Dataset
 The [Prostate 3D MRI dataset](https://data.csiro.au/collection/csiro:51392v2?redirected=true) 
 is a 3D dataset comprised of 211 Nifti scans from the MRI scan of 38 patients. 
