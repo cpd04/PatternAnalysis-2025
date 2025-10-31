@@ -30,7 +30,7 @@ import predict
 BATCH_SIZE=2
 EPOCHS=20
 LEARNING_RATE=4e-4
-MODEL_PATH = os.path.join("./models/", "3d_unet_model.pth")
+MODEL_PATH = os.path.join("./models/")
 VISUAL_PATH_INPUTS = os.path.join("./visualisation/inputs/")
 VISUAL_PATH_OUTPUTS = os.path.join("./visualisation/outputs/")
 
@@ -43,6 +43,9 @@ def visualise_inputs(loader, output_path):
     sample_raw = raw[0].cpu().numpy()  # Shape: (1, D, H, W)
     sample_segmented = segmented[0]    # Shape: (C, D, H, W)
     segmented_converted = utils.to_single_channel(sample_segmented).cpu().numpy()  # Shape: (1, D, H, W)
+
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.join(os.path.dirname(__file__), output_path), exist_ok=True)
 
     # Save visualisations
     sample_raw_path = os.path.join(os.path.dirname(__file__), output_path, "sample_raw.gif")
@@ -164,7 +167,10 @@ def train_model():
     
     # Save the trained model
     model_path_dir = os.path.join(os.path.dirname(__file__), MODEL_PATH)
-    torch.save(model.state_dict(), model_path_dir)
+
+    # Create directory if it doesn't exist and save
+    os.makedirs(os.path.dirname(model_path_dir), exist_ok=True)
+    torch.save(model.state_dict(), os.path.join(model_path_dir, "3d_unet_model.pth"))
 
     # Evaluate on validation set
     predict.evaluate_unet(model, test_loader, device=device)

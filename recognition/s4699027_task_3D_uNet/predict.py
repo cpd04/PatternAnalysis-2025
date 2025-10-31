@@ -116,6 +116,9 @@ def predict_single_image(model, loader: DataLoader, data_path: str, device: str 
         pred_single = utils.to_single_channel(outputs[0]).cpu().numpy()
         raw_single = raw[0].cpu().numpy()
 
+        # Create output directory if it doesn't exist
+        os.makedirs(os.path.join(os.path.dirname(__file__), data_path), exist_ok=True)
+
         # Generate GIFs for visualisation
         raw_gif_path = os.path.join(os.path.dirname(__file__), data_path, "raw.gif")
         segmented_gif_path = os.path.join(os.path.dirname(__file__), data_path, "segmented.gif")
