@@ -107,32 +107,29 @@ def predict_single_image(model, loader: DataLoader, data_path: str, device: str 
         # Forward pass prediction
         outputs = model(raw.to(device))              # (N, C, H, W)
 
-        print(raw.shape)
-        print(segmented.shape)
-        print(outputs.shape)
+    # Convert to single channel for visualisation
+    segmented_single = utils.to_single_channel(segmented[0]).cpu().numpy()
+    pred_single = utils.to_single_channel(outputs[0]).cpu().numpy()
+    raw_single = raw[0].cpu().numpy()
 
-        # Convert to single channel for visualisation
-        segmented_single = utils.to_single_channel(segmented[0]).cpu().numpy()
-        pred_single = utils.to_single_channel(outputs[0]).cpu().numpy()
-        raw_single = raw[0].cpu().numpy()
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.join(os.path.dirname(__file__), data_path), exist_ok=True)
 
-        # Create output directory if it doesn't exist
-        os.makedirs(os.path.join(os.path.dirname(__file__), data_path), exist_ok=True)
+    # Generate GIFs for visualisation
+    raw_gif_path = os.path.join(os.path.dirname(__file__), data_path, "raw.gif")
+    segmented_gif_path = os.path.join(os.path.dirname(__file__), data_path, "segmented.gif")
+    pred_gif_path = os.path.join(os.path.dirname(__file__), data_path, "pred.gif")
 
-        # Generate GIFs for visualisation
-        raw_gif_path = os.path.join(os.path.dirname(__file__), data_path, "raw.gif")
-        segmented_gif_path = os.path.join(os.path.dirname(__file__), data_path, "segmented.gif")
-        pred_gif_path = os.path.join(os.path.dirname(__file__), data_path, "pred.gif")
+    utils.generate_gif(raw_single, raw_gif_path, fps=50, cmap_name="viridis")
+    utils.generate_gif(segmented_single, segmented_gif_path, fps=50, cmap_name="viridis")
+    utils.generate_gif(pred_single, pred_gif_path, fps=50, cmap_name="viridis")
 
-        utils.generate_gif(raw_single, raw_gif_path, fps=50, cmap_name="viridis")
-        utils.generate_gif(segmented_single, segmented_gif_path, fps=50, cmap_name="viridis")
-        utils.generate_gif(pred_single, pred_gif_path, fps=50, cmap_name="viridis")
-
-        # Combine GIFs for comparison
-        combined_gif_path = os.path.join(os.path.dirname(__file__), data_path, "combined.gif")
-        utils.combine_gifs(raw_gif_path, segmented_gif_path, pred_gif_path, out_path=combined_gif_path, fps=50)
+    # Combine GIFs for comparison
+    combined_gif_path = os.path.join(os.path.dirname(__file__), data_path, "combined.gif")
+    utils.combine_gifs(raw_gif_path, segmented_gif_path, pred_gif_path, out_path=combined_gif_path, fps=50)
     
     print(f"Saved prediction GIFs to {data_path}")
+    return [raw_gif_path, segmented_gif_path, pred_gif_path, combined_gif_path]
 
 def load_and_predict_model(model_path: str, data_path: str, visual_path: str, device: str = "cuda"):
     """

@@ -9,8 +9,8 @@ model and it's results are saved and logged for comparison.
 
 @author Connor Davis
 """
-
-# TODO: Implement ability to save model checkpoints during training
+# Ensure that your environment has WANDB has api key
+# os.environ['WANDB_API_KEY'] = '6de798213794f707d5400ea0635229258a219f93'
 
 # Incoporate WAND during training to get good visualisation of errors
 import torch
@@ -20,6 +20,7 @@ import torch.nn.functional as F
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+import wandb
 
 from modules import ImprovedUNet
 from dataset import load_prostate_data
@@ -32,6 +33,7 @@ EPOCHS=20
 LEARNING_RATE=4e-4
 MODEL_PATH = os.path.join("./models/")
 VISUAL_PATH_INPUTS = os.path.join("./visualisation/inputs/")
+VISUAL_PATH_VALIDATION = os.path.join("./visualisation/validation/")
 VISUAL_PATH_OUTPUTS = os.path.join("./visualisation/outputs/")
 
 def visualise_inputs(loader, output_path):
@@ -54,6 +56,8 @@ def visualise_inputs(loader, output_path):
     # Generate GIFs
     utils.generate_gif(sample_raw, sample_raw_path, fps=50, cmap_name="viridis")
     utils.generate_gif(segmented_converted, sample_segmented_path, fps=50, cmap_name="viridis")
+
+    return [sample_raw_path, sample_segmented_path]
 
 class SoftDiceLoss(nn.Module):
     # Needs to be updated with the dice loss used in the paper
@@ -86,6 +90,16 @@ def train_model():
     Load the trained model and testing data to perform predictions. Visualisations
     are created and saved for analysis.
     """
+    # Start a new run
+    wandb.init(project="COMP3710-training",
+                name="experiment-2",
+                config={
+                    "learning_rate": LEARNING_RATE,
+                    "epochs": EPOCHS,
+                    "batch_size": BATCH_SIZE,
+                    "optimizer": "adam"
+                })
+
     # Define device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -97,13 +111,17 @@ def train_model():
                                                             validation_data=1, 
                                                             test_data=1, 
                                                             train_split=0.7, 
-                                                            validation_split=0.15,
+                                                            validation_split=0.3,
                                                             batch_size=BATCH_SIZE,
                                                             downsample=True,
                                                             debugging_mode=False)
     
-    # Visualise some inputs
-    visualise_inputs(train_loader, VISUAL_PATH_INPUTS)
+    # Visualise some inputs and add to W&B
+    sample_raw_path, sample_segmented_path = visualise_inputs(train_loader, VISUAL_PATH_INPUTS)
+    wandb.log({
+        "train_visual/sample_raw": wandb.Video(sample_raw_path, format="gif"),
+        "train_visual/sample_segmented": wandb.Video(sample_segmented_path, format="gif")
+    })
     
     # Initialise the model, loss function, and optimizer
     model = ImprovedUNet(in_channels=1, out_channels=6).to(device, dtype=torch.float32)
@@ -161,6 +179,26 @@ def train_model():
             print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {avg_loss:.4f}, Val Loss: {val_loss:.4f}")
         else:
             print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {avg_loss:.4f}") 
+        
+        # Log to W&B
+        wandb.log({
+            "training/loss": avg_loss,
+            "validation/loss": val_loss,
+            "learning_rate": scheduler.get_last_lr()[0]
+        })
+
+        # Visualise predictions on a sample from validation set
+        if validation_loader is not None:
+            # Generate gifs during training
+            val_path = os.path.join(os.path.dirname(__file__), VISUAL_PATH_VALIDATION)
+            os.makedirs(os.path.dirname(val_path), exist_ok=True)
+            vis_epoch = os.path.join(val_path, f"epoch_{epoch+1}")
+            raw_gif_path, segmented_gif_path, pred_gif_path, combined_gif_path = predict.predict_single_image(model, validation_loader, vis_epoch, device=device)
+            
+            # Upload visualisation gif to W&B
+            wandb.log({
+                f"val_visual/combined/epoch_{epoch+1}": wandb.Video(combined_gif_path, format="gif"),
+            })
 
         # Step the scheduler
         scheduler.step()
@@ -171,13 +209,26 @@ def train_model():
     # Create directory if it doesn't exist and save
     os.makedirs(os.path.dirname(model_path_dir), exist_ok=True)
     torch.save(model.state_dict(), os.path.join(model_path_dir, "3d_unet_model.pth"))
+    print(f"Trained model saved at {model_path_dir}")
 
     # Evaluate on validation set
-    predict.evaluate_unet(model, test_loader, device=device)
-
-    # Visualise predictions on a sample image
-    predict.predict_single_image(model, test_loader, VISUAL_PATH_OUTPUTS, device=device)
+    rice_score = predict.evaluate_unet(model, test_loader, device=device)
+    print("Average Dice Score per class on Test Set:")
+    for cls, dsc in enumerate(rice_score):
+        print(f"  Class {cls}: {dsc:.4f}")
+        wandb.log({f"test/dice_score/class_{cls}": dsc})
     
+    # Visualise predictions on a sample image
+    output_paths = os.path.join(os.path.dirname(__file__), VISUAL_PATH_OUTPUTS)
+    raw_gif_path, segmented_gif_path, pred_gif_path, combined_gif_path = predict.predict_single_image(model, test_loader, output_paths, device=device)
+
+    # Upload visualisation gif to W&B
+    wandb.log({"test_visual/combined": wandb.Video(combined_gif_path, format="gif"),
+               "test_visual/raw": wandb.Video(raw_gif_path, format="gif"),
+               "test_visual/segmented": wandb.Video(segmented_gif_path, format="gif"),
+               "test_visual/predicted": wandb.Video(pred_gif_path, format="gif")
+               })
+
     return model
 
 if __name__ == "__main__":

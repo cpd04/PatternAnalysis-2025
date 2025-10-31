@@ -60,7 +60,6 @@ def generate_gif(volume, out_path, fps=16, cmap_name="viridis"):
     
     # Save as animated GIF
     imageio.mimsave(out_path, frames, fps=fps, loop=0)
-    print(f"Saved {out_path} with {len(frames)} frames at {fps} fps.")
 
 def combine_gifs(raw_path, true_path, pred_path, out_path="combined.gif", fps=50):
     # Read both GIFs as lists of frames (NumPy arrays)
@@ -83,4 +82,3 @@ def combine_gifs(raw_path, true_path, pred_path, out_path="combined.gif", fps=50
 
     # Save as new animated GIF
     imageio.mimsave(out_path, frames, fps=fps, loop=0)
-    print(f"Saved combined GIF: {out_path}")
