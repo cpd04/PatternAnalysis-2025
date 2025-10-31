@@ -10,7 +10,6 @@ model and it's results are saved and logged for comparison.
 @author Connor Davis
 """
 # Ensure that your environment has WANDB has api key
-# os.environ['WANDB_API_KEY'] = '6de798213794f707d5400ea0635229258a219f93'
 
 # Incoporate WAND during training to get good visualisation of errors
 import torch
@@ -111,9 +110,9 @@ def train_model():
                                                             validation_data=1, 
                                                             test_data=1, 
                                                             train_split=0.7, 
-                                                            validation_split=0.3,
+                                                            validation_split=0.15,
                                                             batch_size=BATCH_SIZE,
-                                                            downsample=True,
+                                                            downsample=False,
                                                             debugging_mode=False)
     
     # Visualise some inputs and add to W&B
