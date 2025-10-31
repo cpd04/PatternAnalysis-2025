@@ -16,6 +16,7 @@ import os
 import nibabel as nib
 import torchvision.transforms as transforms
 import utils
+import torchio as tio
 
 from tqdm import tqdm
 from torch.utils.data import DataLoader, TensorDataset
@@ -111,7 +112,8 @@ def load_data_3D(imageNames, normImage=False, categorical=False,
     else:
         return images
 
-def create_loader(image_list, label_list, batch_size=4, downsample=True, reduced_shape=False, shuffle=True):
+def create_loader(image_list, label_list, batch_size=4, downsample=True, 
+                  reduced_shape=False, transform_flag=False, shuffle=True):
     '''
     Load specific data for testing purposes.
     '''
@@ -139,6 +141,32 @@ def create_loader(image_list, label_list, batch_size=4, downsample=True, reduced
 
     # Develop the data loader
     num_total = len(images) 
+
+    # Create transforms
+    if transform_flag:
+        # List of Transforms
+        flip_ap = tio.RandomFlip(axes=['anteroposterior'], flip_probability=0.5)
+        flip_lr = tio.RandomFlip(axes=['lateral'], flip_probability=0.5)
+        blur = tio.RandomBlur(p=0.1)
+        noise = tio.RandomNoise(mean=128, std=10)
+        
+        transforms = tio.Compose([
+            flip_ap,
+            flip_lr,
+            # blur,
+            # noise,
+        ])
+
+        # Apply transforms
+        for i in range(num_total):
+            subject = tio.Subject(
+                raw=tio.ScalarImage(tensor=images[i]),
+                label=tio.LabelMap(tensor=labels[i].float())
+            )
+            transformed = transforms(subject)
+            images[i] = transformed['raw'].data
+            labels[i] = transformed['label'].data.to(torch.uint8)
+
     dataset = TensorDataset(images, labels)
     loader = DataLoader(dataset=dataset, batch_size=batch_size, 
                               shuffle=shuffle)
@@ -165,9 +193,20 @@ def load_prostate_data(data_file_path, train_data=1, validation_data=1,
     x_test_names = []
     y_test_names = []
     
-    # Data augmentation (might also want to shuffle):
-    # Flip data
-    # Rotate data
+    # Data augmentation (that are probably good):
+    # Flip data tio.RandomFlip(axes=['inferior-superior'], flip_probability=1.0), random_flip(fpg_ras)
+    # Rotate data - No option in tio, can just do multiple flips to achieve same result
+    # Add noise add_noise = tio.RandomNoise(std=0.5), standard = standardize(fpg_ras), noisy = add_noise(standard)
+    # Add SMALL blur - tio.RandomBlur(), blur(fpg_ras)
+    # Can combine with composition - tio.Compose([transforms])
+
+    # Data augmentation (that I wont include):
+    # Crop and Pad tio.CropOrPad(target_shape=(128, 128, 64)) - Preprocessing technique
+    # Random affine or elastic transformation
+    # Random bias field artifact
+    # Random motion artifact
+    # Random spike artifact
+    # Random ghosting artifact
 
     # Directory path information
     image_file_path = "/semantic_MRs_anon/"
@@ -202,6 +241,7 @@ def load_prostate_data(data_file_path, train_data=1, validation_data=1,
         train_loader = create_loader(x_train_names, y_train_names, 
                                      batch_size=batch_size, reduced_shape=debugging_mode,
                                      downsample=downsample,
+                                     transform_flag=False,
                                      shuffle=True)
         loaders[0] = train_loader
 
@@ -214,6 +254,7 @@ def load_prostate_data(data_file_path, train_data=1, validation_data=1,
                                                batch_size=batch_size, 
                                                reduced_shape=debugging_mode, 
                                                downsample=downsample,
+                                               transform_flag=False,
                                                shuffle=True)
         loaders[1] = validation_data_loader
 
@@ -224,6 +265,7 @@ def load_prostate_data(data_file_path, train_data=1, validation_data=1,
         test_data_loader = create_loader(x_test_names, y_test_names, 
                                          batch_size=batch_size, reduced_shape=debugging_mode,
                                          downsample=downsample,
+                                         transform_flag=False,
                                          shuffle=False)
         loaders[2] = test_data_loader
 
