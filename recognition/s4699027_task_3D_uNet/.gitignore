@@ -1,2 +1,4 @@
 # Ignore dataset
 data/
+models/
+visualisation/
