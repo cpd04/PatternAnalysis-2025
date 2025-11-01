@@ -1,31 +1,38 @@
 #!/usr/bin/env python
 """
-Script to import and load the training, testing, and validation data. Labelled 
-datasets are developed in the Nifti file format.
+Script to import and load the training, testing, and validation data. Datasets 
+are developed in the Nifti file format.
 
 @author Connor Davis
 """
 
-# Note: From the HipMRI_study codebase, it seems like the first slice of the
-# segmented data is only the background even though there are multiple values
-# in the real data. 
-
+# Import necessary libraries
+import utils
+import os
 import torch
 import numpy as np
-import os
 import nibabel as nib
 import torchvision.transforms as transforms
-import utils
 import torchio as tio
-
 from tqdm import tqdm
 from torch.utils.data import DataLoader, TensorDataset
 
-def to_channels(arr: np.ndarray, dtype=np.uint8) -> np.ndarray:
-    '''
+def to_channels(arr, dtype=np.uint8):
+    """
     Convert a label array to one-hot encoding along a new last axis.
-    '''
+
+    Arguments:
+        arr : Numpy array of shape (D, H, W) containing the labelled data
+        dtype : Desired data type of the output array
+    
+    Returns:
+        res : Numpy array of shape (D, H, W, C) containing one-hot encoded data
+    """
+    
+    # Find unique number of channels
     channels = np.unique(arr)
+
+    # Assign each channel to a new axis
     res = np.zeros(arr.shape + (len(channels),), dtype=dtype)
     for c in channels:
         c = int(c)
@@ -36,18 +43,26 @@ def to_channels(arr: np.ndarray, dtype=np.uint8) -> np.ndarray:
 def load_data_3D(imageNames, normImage=False, categorical=False,
                  dtype=np.float32, getAffines=False, orient=False,
                  early_stop=False):
-    '''
+    """
     Load medical image data from names, cases list provided into a list for each.
 
     This function pre-allocates 5D arrays for conv3d to avoid excessive memory usage.
 
-    normImage : bool (normalise the image 0.0–1.0)
-    orient : Apply orientation and resample image? Good for images with large slice
-             thickness or anisotropic resolution
-    dtype : Type of the data. If dtype = np.uint8, it is assumed that the data is labels
-    early_stop : Stop loading pre-maturely? Leaves arrays mostly empty, for quick
-                 loading and testing scripts.
-    '''
+    Arguments:
+        imageNames : List of paths to NIFTI images to load
+        normImage : bool (normalise the image 0.0–1.0) 
+        categorical : bool (convert to one-hot encoding)
+        dtype : Type of the data. If dtype = np.uint8, it is assumed that the data is labels
+        getAffines : Return the affine matrices along with the image data
+        orient : Apply orientation and resample image. Good for images with large slice
+                thickness or anisotropic resolution
+        early_stop : Stop loading pre-maturely. Leaves arrays mostly empty, for quick
+                    loading and testing scripts.
+
+    Returns:
+        images : 5D Numpy array of shape (N, D, H, W, C) or (N, D, H, W) containing the loaded data
+        affines : List of affine matrices corresponding to each image (if getAffines=True)
+    """
     affines = []
     
     # ~ interp = ' continuous '
@@ -60,13 +75,13 @@ def load_data_3D(imageNames, normImage=False, categorical=False,
     niftiImage = nib.load(imageNames[0])
     if orient:
         niftiImage = utils.im.applyOrientation(niftiImage, interpolation=interp, scale=1)
-        # ~ testResultName = " oriented . nii . gz "
-        # ~ niftiImage . to_filename ( testResultName )
 
+    # Get the first case
     first_case = niftiImage.get_fdata(caching='unchanged')
     if len(first_case.shape) == 4:
         first_case = first_case[:, :, :, 0]  # sometimes extra dims, remove
 
+    # Convert to one-hot encoded if necessary
     if categorical:
         first_case = to_channels(first_case, dtype=dtype)
         rows, cols, depth, channels = first_case.shape
@@ -75,11 +90,14 @@ def load_data_3D(imageNames, normImage=False, categorical=False,
         rows, cols, depth = first_case.shape
         images = np.zeros((num, rows, cols, depth), dtype=dtype)
 
+    # Process each of the images
     for i, inName in enumerate(tqdm(imageNames)):
+        # Load the NIFTI image
         niftiImage = nib.load(inName)
         if orient:
             niftiImage = utils.im.applyOrientation(niftiImage, interpolation=interp, scale=1)
 
+        # Read the image data
         inImage = niftiImage.get_fdata(caching='unchanged') # read disk only
         affine = niftiImage.affine
 
@@ -90,16 +108,12 @@ def load_data_3D(imageNames, normImage=False, categorical=False,
         inImage = inImage.astype(dtype)
 
         if normImage:
-            # ~ inImage = inImage / np . linalg . norm ( inImage )
             inImage = inImage / inImage.max()
-            # ~ inImage = (inImage - inImage.mean()) / inImage.std()
 
         if categorical:
             inImage = utils.to_channels(inImage)
-            # ~ images [i ,: ,: ,: ,:] = inImage
             images[i, :inImage.shape[0], :inImage.shape[1], :inImage.shape[2], :inImage.shape[3]] = inImage #with Pad
         else:
-            # ~ images [i ,: ,: ,:] = inImage
             images[i, :inImage.shape[0], :inImage.shape[1], :inImage.shape[2]] = inImage #with Pad
 
         affines.append(affine)
@@ -114,10 +128,23 @@ def load_data_3D(imageNames, normImage=False, categorical=False,
 
 def create_loader(image_list, label_list, batch_size=4, downsample=True, 
                   reduced_shape=False, transform_flag=False, shuffle=True):
-    '''
-    Load specific data for testing purposes.
-    '''
-    
+    """ 
+    Create specific data loader from set of images and labels in NIFTI format.
+
+    Arguments:
+        image_list : List of paths to NIFTI images to load
+        label_list : List of paths to NIFTI labels to load
+        batch_size : Size of batches for the data loader
+        downsample : Downsample the data by a factor of 2 in each spatial 
+                      dimension 
+        reduced_shape : Reduce the shape of the data to 32x32x16 for debugging
+        transform_flag : Apply data augmentation transforms
+        shuffle : Shuffle the data in the loader
+
+    Returns:
+        loader : Pytorch DataLoader object for the dataset
+    """
+
     # Begin loading of data    
     images = torch.from_numpy(load_data_3D(image_list, normImage=True,
                                            dtype=np.float32)).to(torch.float32)
@@ -128,6 +155,7 @@ def create_loader(image_list, label_list, batch_size=4, downsample=True,
     images = images[:, torch.newaxis, :, :, :]
     labels = labels.permute(0, 4, 1, 2, 3)
 
+    # Downsample the data if required
     if downsample:
         images = torch.nn.functional.avg_pool3d(images, kernel_size=2, stride=2)
         labels = torch.nn.functional.max_pool3d(labels.float(), kernel_size=2, stride=2).to(torch.uint8)
@@ -150,6 +178,21 @@ def create_loader(image_list, label_list, batch_size=4, downsample=True,
         blur = tio.RandomBlur(p=0.1)
         noise = tio.RandomNoise(mean=128, std=10)
         
+        # Data augmentation (that are probably good):
+        # Flip data tio.RandomFlip(axes=['inferior-superior'], flip_probability=1.0), random_flip(fpg_ras)
+        # Rotate data - No option in tio, can just do multiple flips to achieve same result
+        # Add noise add_noise = tio.RandomNoise(std=0.5), standard = standardize(fpg_ras), noisy = add_noise(standard)
+        # Add SMALL blur - tio.RandomBlur(), blur(fpg_ras)
+        # Can combine with composition - tio.Compose([transforms])
+
+        # Data augmentation (that I wont include):
+        # Crop and Pad tio.CropOrPad(target_shape=(128, 128, 64)) - Preprocessing technique
+        # Random affine or elastic transformation
+        # Random bias field artifact
+        # Random motion artifact
+        # Random spike artifact
+        # Random ghosting artifact
+
         transforms = tio.Compose([
             flip_ap,
             flip_lr,
@@ -166,25 +209,41 @@ def create_loader(image_list, label_list, batch_size=4, downsample=True,
             transformed = transforms(subject)
             images[i] = transformed['raw'].data
             labels[i] = transformed['label'].data.to(torch.uint8)
-
+    
+    # Generate the dataset and loader
     dataset = TensorDataset(images, labels)
     loader = DataLoader(dataset=dataset, batch_size=batch_size, 
                               shuffle=shuffle)
     
     return loader
 
-def load_prostate_data(data_file_path, train_data=1, validation_data=1, 
-                       test_data=1, train_split=0.7, validation_split=0.15,
+def load_prostate_data(data_file_path, train_data=True, validation_data=True, 
+                       test_data=True, train_split=0.7, validation_split=0.15,
                         batch_size=4, downsample=True, transform_flag=False,
                           debugging_mode=False):
-    '''
-    Load the prostate MRI data in the NIFTI format for training and testing. Data
-    is augmented appropriately for better generalisation performance. 
+    """
+    Load the prostate MRI data in the NIFTI format for training, validation, 
+    and testing. Data is augmented appropriately for better generalisation 
+    performance. 
 
-    data_file_path : Path to the NIFTI data file folder
-    train_data : Flag to load and export the training data set
-    test_data : Flag to load and export the testing data set
-    '''
+    Arguments:
+        data_file_path : Path to the directory containing the data
+        train_data : Whether to load training data
+        validation_data : Whether to load validation data
+        test_data : Whether to load testing data
+        train_split : Proportion of data to use for training
+        validation_split : Proportion of data to use for validation
+        batch_size : Size of batches for the data loader
+        downsample : Downsample the data by a factor of 2 in each spatial 
+                        dimension (1=True, 0=False)
+        transform_flag : Apply data augmentation transforms (1=True, 0=False)
+        debugging_mode : Reduce the shape of the data to 32x32x16 for debugging 
+                        (1=True, 0=False)
+
+    Returns:
+        loaders : List of DataLoader objects for [train_loader, 
+        validation_loader, test_loader]
+    """
 
     # Initialise train, validation, and test sets
     x_train_names = []
@@ -193,21 +252,6 @@ def load_prostate_data(data_file_path, train_data=1, validation_data=1,
     y_validate_names = []
     x_test_names = []
     y_test_names = []
-    
-    # Data augmentation (that are probably good):
-    # Flip data tio.RandomFlip(axes=['inferior-superior'], flip_probability=1.0), random_flip(fpg_ras)
-    # Rotate data - No option in tio, can just do multiple flips to achieve same result
-    # Add noise add_noise = tio.RandomNoise(std=0.5), standard = standardize(fpg_ras), noisy = add_noise(standard)
-    # Add SMALL blur - tio.RandomBlur(), blur(fpg_ras)
-    # Can combine with composition - tio.Compose([transforms])
-
-    # Data augmentation (that I wont include):
-    # Crop and Pad tio.CropOrPad(target_shape=(128, 128, 64)) - Preprocessing technique
-    # Random affine or elastic transformation
-    # Random bias field artifact
-    # Random motion artifact
-    # Random spike artifact
-    # Random ghosting artifact
 
     # Directory path information
     image_file_path = "/semantic_MRs_anon/"
@@ -264,7 +308,8 @@ def load_prostate_data(data_file_path, train_data=1, validation_data=1,
         x_test_names.extend(image_list[int((train_split + validation_split) * len(image_list)):])
         y_test_names.extend(label_list[int((train_split + validation_split) * len(label_list)):])
         test_data_loader = create_loader(x_test_names, y_test_names, 
-                                         batch_size=batch_size, reduced_shape=debugging_mode,
+                                         batch_size=batch_size, 
+                                         reduced_shape=debugging_mode,
                                          downsample=downsample,
                                          transform_flag=False,
                                          shuffle=False)

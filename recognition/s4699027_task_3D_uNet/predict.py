@@ -7,6 +7,7 @@ segmented image, and the predicted segmented image are constructed and saved.
 @author Connor Davis
 """
 
+# Library imports
 import torch
 from torch.functional import F
 from torch.utils.data import DataLoader
@@ -26,14 +27,14 @@ def dice_score(pred, target, num_classes: int = 6, epsilon: float = 1e-6):
     """
     Compute Dice coefficient per class.
 
-    Args:
+    Arguments:
         pred: predicted masks (N, C, H, W) with class indices
         target: ground truth masks (N, C, H, W) with class indices
         num_classes: number of segmentation classes
         epsilon: smoothing term to avoid division by zero
 
     Returns:
-        list of dice scores per class
+        dice_per_class : list of dice scores per class
     """
 
     # Ensure target is in float form
@@ -49,25 +50,30 @@ def dice_score(pred, target, num_classes: int = 6, epsilon: float = 1e-6):
     cardinality = torch.sum(pred + target_one_hot, dims)
 
     dice_per_class = (2. * intersection + epsilon) / (cardinality + epsilon)
-    return dice_per_class  # shape [C]
+    return dice_per_class  
 
-
-def evaluate_unet(model, loader: DataLoader, device: str = "cuda"):
+def evaluate_unet(model, loader, device="cuda"):
     """
     Evaluate a trained U-Net on a test set using DSC per class.
 
-    Args:
+    Arguments:
         model: trained UNet model
-        test_loader: DataLoader for test set
+        test_loader: DataLoader with data to evaluate
         device: device string ("cuda" or "cpu")
+
+    Returns:
+        avg_dsc: list of average Dice scores per class
     """
+    # Set model to evaluation mode
     model.eval()
     model.to(device)
 
+    # Initialise accumulators
     num_classes = 6
     total_dsc = [0.0 for _ in range(num_classes)]
     count = 0
 
+    # Evaluate on test set
     with torch.no_grad():
         for images, masks in loader:
             images, masks = images.to(device), masks.to(device)
@@ -75,33 +81,40 @@ def evaluate_unet(model, loader: DataLoader, device: str = "cuda"):
             # forward pass
             outputs = model(images)              # (N, C, H, W)
 
+            # Compute Dice Score
             dsc_batch = dice_score(outputs, masks, num_classes=num_classes)
             total_dsc = [t + d for t, d in zip(total_dsc, dsc_batch)]
             count += 1
 
+    # Compute average Dice Score
     avg_dsc = [t / count for t in total_dsc]
 
     print("Dice per class:")
     for cls, dsc in enumerate(avg_dsc):
         print(f"  Class {cls}: {dsc:.4f}")
 
+    print(f"Multiclass Dice Score: {sum(avg_dsc) / len(avg_dsc):.4f}")
+
     return avg_dsc
 
-def predict_single_image(model, loader: DataLoader, data_path: str, device: str = "cuda"):
+def predict_single_image(model, loader, data_path, device="cuda"):
     """
-    Predict segmentation mask for a single image using the trained model.
+    Predict a single image from the loader and create visualisations.
 
-    Args:
-        model: trained UNet model
-        image: input image tensor (1, C, H, W)
-        device: device string ("cuda" or "cpu")
+    Arguments:
+        model : trained UNet model
+        loader : DataLoader for the test image
+        data_path : Path to save visualisations
+        device : Device string ("cuda" or "cpu")
 
     Returns:
-        predicted segmentation mask (1, C, H, W)
+        [raw, segmented, pred, combined] : List of paths to saved GIFs
     """
+    # Set model to evaluation mode
     model.eval()
     model.to(device)
 
+    # Get a single batch
     raw, segmented = next(iter(loader))
     with torch.no_grad():
         # Forward pass prediction
@@ -120,6 +133,7 @@ def predict_single_image(model, loader: DataLoader, data_path: str, device: str 
     segmented_gif_path = os.path.join(os.path.dirname(__file__), data_path, "segmented.gif")
     pred_gif_path = os.path.join(os.path.dirname(__file__), data_path, "pred.gif")
 
+    # Generate individual GIFs
     utils.generate_gif(raw_single, raw_gif_path, fps=50, cmap_name="viridis")
     utils.generate_gif(segmented_single, segmented_gif_path, fps=50, cmap_name="viridis")
     utils.generate_gif(pred_single, pred_gif_path, fps=50, cmap_name="viridis")
@@ -131,15 +145,15 @@ def predict_single_image(model, loader: DataLoader, data_path: str, device: str 
     print(f"Saved prediction GIFs to {data_path}")
     return [raw_gif_path, segmented_gif_path, pred_gif_path, combined_gif_path]
 
-def load_and_predict_model(model_path: str, data_path: str, visual_path: str, device: str = "cuda"):
+def load_and_predict_model(model_path, data_path, visual_path, device="cuda"):
     """
     Load a trained model and perform prediction on a single image.
 
-    Args:
-        model_path: path to the saved model file
-        data_path: path to save visualisations
+    Arguments:
+        model_path: Path to the saved model file
+        data_path: Path to save visualisations
         loader: DataLoader for the test image
-        device: device string ("cuda" or "cpu")
+        device: Device string ("cuda" or "cpu")
     """
     # Load the trained model
     model = ImprovedUNet(in_channels=1, out_channels=6).to(device)

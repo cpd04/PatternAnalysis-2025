@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 """
-Script for key utility functions, primarily the conversion of label arrays to
-one-hot encoding.
+Script for key utility functions used in visualisation and data conversion for 
+the 3D Improved UNet segmentation model.
 
 @author Connor Davis
 """
 
+# Important libraries
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -15,20 +16,28 @@ import matplotlib
 import imageio.v2 as imageio
 
 def to_channels(data, num_classes=6):
-    '''
-    Convert the labelled dataset to one-hot encoding along a new channel axis.
+    """
+    Convert the labelled dataset to one-hot encoding along a channel axis.
 
-    data : Numpy array of shape (D, H, W) containing the labelled data
-    num_classes : Number of unique classes in the dataset
-    '''
+    Arguments:
+        data : Numpy array of shape (1, D, H, W) containing the labelled data
+        num_classes : Number of unique classes in the dataset
+    
+    Returns:
+        one_hot : Numpy array of shape (C, D, H, W) containing one-hot encoded data
+    """
     return np.eye(num_classes)[data]
 
 def to_single_channel(data):
-    '''
+    """
     Convert one-hot encoded data back to single channel format.
 
-    data : Numpy array of shape (C, D, H, W) containing one-hot encoded data
-    '''
+    Arguments:
+        data : Tensor of shape (C, D, H, W) containing one-hot encoded
+    
+    Returns:
+        data : Numpy array of shape (1, D, H, W) containing single channel data
+    """
     # Convert all channels to single channel by taking argmax, then normalise
     single_channel = torch.argmax(data, dim=0, keepdim=True)
     norm_image = (single_channel / single_channel.max()).to(torch.float16)
@@ -37,10 +46,14 @@ def to_single_channel(data):
 
 def generate_gif(volume, out_path, fps=16, cmap_name="viridis"):
     """
-    Generate an animated GIF from a 3D NumPy array (volume).
+    Generate an animated GIF from a 3D Tensor array (volume).
     Each frame corresponds to one slice along the first axis.
 
-    volume : 3D numpy array (C, D, H, W) -> (1, 256, 256, 128)
+    Arguments:
+        volume : 4D Tensor array (1, D, H, W)
+        out_path : Path to save the output GIF
+        fps : Frames per second for the GIF
+        cmap_name : Name of the matplotlib colormap to use
     """
     # Remove channel dimension
     volume = volume[0]  
@@ -61,6 +74,18 @@ def generate_gif(volume, out_path, fps=16, cmap_name="viridis"):
     imageio.mimsave(out_path, frames, fps=fps, loop=0)
 
 def combine_gifs(raw_path, true_path, pred_path, out_path="combined.gif", fps=50):
+    """
+    Combine three GIFs (raw model input, true segmentation, predicted segmentation)
+    into a single GIF by placing them side by side.
+
+    Arguments:
+        raw_path : Path to the raw input GIF
+        true_path : Path to the true segmentation GIF
+        pred_path : Path to the predicted segmentation GIF
+        out_path : Path to save the combined output GIF
+        fps : Frames per second for the output GIF
+    """
+    
     # Read both GIFs as lists of frames (NumPy arrays)
     raw_model = imageio.mimread(raw_path)
     true_seg = imageio.mimread(true_path)

@@ -11,12 +11,10 @@ model and it's results are saved and logged for comparison.
 """
 # Ensure that your environment has WANDB has api key
 
-# Incoporate WAND during training to get good visualisation of errors
+# Import required libraries
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-import numpy as np
 import os
 import wandb
 
@@ -35,6 +33,18 @@ VISUAL_PATH_VALIDATION = os.path.join("./visualisation/validation/")
 VISUAL_PATH_OUTPUTS = os.path.join("./visualisation/outputs/")
 
 def visualise_inputs(loader, output_path):
+    """
+    Visualise first sample inputs from the dataloader and save as gifs.
+    
+    Arguments:
+        loader: DataLoader to get samples from
+        output_path: path to save visualisations
+    
+    Returns:
+        sample_raw_path: path to saved raw input gif
+        sample_segmented_path: path to saved segmented input gif
+    """
+    
     # Get a batch of data
     for raw, segmented in loader:
         break
@@ -58,15 +68,29 @@ def visualise_inputs(loader, output_path):
     return [sample_raw_path, sample_segmented_path]
 
 class SoftDiceLoss(nn.Module):
-    # Needs to be updated with the dice loss used in the paper
+    """
+    Soft Dice Loss for multi-class segmentation. Used as a criterion for 
+    training the UNet model.
+    """
     def __init__(self, smooth=1e-6):
+        """
+        Arguments:
+            smooth: small constant to avoid division by zero
+        """
+        
         super(SoftDiceLoss, self).__init__()
         self.smooth = smooth
     
     def forward(self, probs, targets):
         """
-        probs: [B, C, D, H, W] raw network outputs (softmax applied)
-        targets: [B, C, D, H, W] one-hot ground truth
+        Compute the Soft Dice Loss.
+
+        Arguments:
+            probs: [B, C, D, H, W] raw network outputs (softmax applied)
+            targets: [B, C, D, H, W] one-hot ground truth
+        
+        Returns:
+            dice_loss: computed Soft Dice Loss
         """
         # Flatten batch and spatial dimensions
         probs = probs.contiguous().view(probs.shape[0], probs.shape[1], -1)
@@ -85,8 +109,11 @@ class SoftDiceLoss(nn.Module):
 
 def train_model():
     """
-    Load the trained model and testing data to perform predictions. Visualisations
+    Load the data and train the model to perform predictions. Visualisations
     are created and saved for analysis.
+
+    Returns:
+        model : trained UNet model
     """
     # Start a new run
     wandb.init(project="COMP3710-training",
@@ -105,9 +132,9 @@ def train_model():
     # Load the data
     data_path = os.path.join(os.path.dirname(__file__), "data", "HipMRI_study_complete_release_v1")
     train_loader, validation_loader, test_loader = load_prostate_data(data_path, 
-                                                            train_data=1, 
-                                                            validation_data=1, 
-                                                            test_data=1, 
+                                                            train_data=True, 
+                                                            validation_data=True, 
+                                                            test_data=True, 
                                                             train_split=0.7, 
                                                             validation_split=0.15,
                                                             batch_size=BATCH_SIZE,

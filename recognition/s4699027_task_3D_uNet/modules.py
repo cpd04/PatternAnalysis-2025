@@ -13,32 +13,66 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 NEGATIVE_SLOPE = 0.01
+DROP_OUT_PROB = 0.3
 
 class ContextModule(nn.Module):
-    """(IN => LeakyReLU => 3D Conv) * 2 + skip"""
-    """Dropout layer in between conv layers"""
+    """
+    Context module consisting of two instance normalisation layers, two 
+    LeakyReLU activations, and two 3D convolutional layers with a dropout layer
+    in between the convolutional layers.
+    """
     def __init__(self, in_channels, out_channels):
+        """
+       IN => LeakyReLU => 3D Conv (k=3) => Dropout => IN => LeakyReLU => 3D Conv (k=3)
+
+        Arguments:
+            in_channels : Number of input channels to the context module
+            out_channels : Number of output channels from the context module
+        """
+            
         super(ContextModule, self).__init__()
         
         # Context layer step
         self.context = nn.Sequential(
+            # First convolution block
             nn.InstanceNorm3d(in_channels),
             nn.LeakyReLU(NEGATIVE_SLOPE),
             nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
 
-            nn.Dropout3d(p=0.3), # Unsure on the effectiveness, revisit
+            # Improved with Dropout
+            nn.Dropout3d(p=DROP_OUT_PROB), 
             
+            # Second convolution block
             nn.InstanceNorm3d(out_channels),
             nn.LeakyReLU(NEGATIVE_SLOPE),
             nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
         )
 
     def forward(self, x):
+        """
+        Forward pass of the context module.
+        
+        Arguments:
+            x : Input tensor to the context module
+        
+        Returns:
+            Output tensor from the context module
+        """
         return self.context(x)
 
 class UpsamplingModule(nn.Module):
-    """(2x Upscale => 3D Conv (k=3) => LeakyReLU) """
+    """
+    Upsampling module consisting of an upsampling layer followed by a 3D 
+    convolutional layer and a LeakyReLU activation.
+    """
     def __init__(self, in_channels, out_channels):
+        """
+        Upsampling => 3D Conv (k=3) => LeakyReLU
+
+        Arguments:
+            in_channels : Number of input channels to the upsampling module
+            out_channels : Number of output channels from the upsampling module
+        """
         super(UpsamplingModule, self).__init__()
         
         # Upsampling layer step
@@ -49,11 +83,30 @@ class UpsamplingModule(nn.Module):
         )
 
     def forward(self, x):
+        """
+        Forward pass of the upsampling module.
+        
+        Arguments:
+            x : Input tensor to the upsampling module
+        
+        Returns:
+            Output tensor from the upsampling module
+        """
         return self.upsample(x)
 
 class LocalisationModule(nn.Module):
-    """3D Conv (k=3) => LeakyReLU => 3d Conv (k=1) => LeakyReLU"""
+    """
+    Localisation module consisting of two 3D convolutional layers with a 
+    LeakyReLU activation.
+    """
     def __init__(self, in_channels, out_channels):
+        """
+        3D Conv (k=3) => LeakyReLU => 3d Conv (k=1) => LeakyReLU
+        
+        Arguments:
+            in_channels : Number of input channels to the localisation module
+            out_channels : Number of output channels from the localisation module
+        """
         super(LocalisationModule, self).__init__()
 
         # Localisation layer step
@@ -66,11 +119,34 @@ class LocalisationModule(nn.Module):
         )
 
     def forward(self, x):
+        """
+        Forward pass of the localisation module.
+        
+        Arguments:
+            x : Input tensor to the localisation module
+        
+        Returns:
+            Output tensor from the localisation module
+        """
         return self.localisation(x)
 
 class DecreaseLayer(nn.Module):
-    """3D Conv (k=3) => LeakyReLU => context module => skip module """
+    """
+    Decrease layer consisting of a 3D convolutional layer followed by a 
+    LeakyReLU activation and a context module. Represents one step in the down
+    sampling path of the 3D Improved UNet architecture.
+    """
     def __init__(self, in_channels, out_channels, stride=1, padding=1):
+        """
+        3D Conv (k=3) => LeakyReLU => context module
+
+        Arguments:
+            in_channels : Number of input channels to the decrease layer
+            out_channels : Number of output channels from the decrease layer
+            stride : Stride for the convolutional layer
+            padding : Padding for the convolutional layer
+        """
+        
         super(DecreaseLayer, self).__init__()
         
         # Decrease layer step
@@ -82,23 +158,67 @@ class DecreaseLayer(nn.Module):
         self.context = ContextModule(out_channels, out_channels)
 
     def forward(self, x):
+        """
+        Forward pass of the decrease layer.
+        
+        Arguments:
+            x : Input tensor to the decrease layer
+        
+        Returns:
+            z : Output tensor from the decrease layer
+        """
+        
         intermediate = self.conv(x)
         z = self.context(intermediate) + intermediate
         return z
 
 class SegmentationLayer(nn.Module):
-    """(Conv => ReLU => BN) * 2"""
+    """
+    Segmentation layer consisting of a 1x1x1 3D convolutional layer to reduce
+    the number of channels to the desired output classes.
+    """
     def __init__(self, in_channels, out_channels):
+        """
+        1x1x1 3D Conv
+        
+        Arguments:
+            in_channels : Number of input channels to the segmentation layer
+            out_channels : Number of output channels from the segmentation layer
+        """
         super(SegmentationLayer, self).__init__()
 
         # 1 x 1 x 1 Stride-1 Convolution
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x):
+        """
+        Forward pass of the segmentation layer.
+        
+        Arguments:
+            x : Input tensor to the segmentation layer
+        
+        Returns:
+            Output tensor from the segmentation layer
+        """
+        
         return self.conv(x)
 
 class ImprovedUNet(nn.Module):
+    """
+    Improved 3D UNet architecture for volumetric segmentation. Combines the
+    previously defined modules to create the full network. Architecture is 
+    based on "Brain Tumor Segmentation and Radiomics Survival Prediction: 
+    Contribution to the BRATS 2017 Challenge" by Isensee et al. (2018).
+    """
     def __init__(self, in_channels=1, out_channels=6, features=[32, 64, 128, 256]):
+        """
+        Constructs the Improved 3D UNet architecture.
+        
+        Arguments:
+            in_channels : Number of input channels to the network
+            out_channels : Number of output channels from the network
+            features : List of feature sizes for each layer in the down path
+        """
         super(ImprovedUNet, self).__init__()
 
         # Set a list of down connection features
@@ -138,15 +258,17 @@ class ImprovedUNet(nn.Module):
         self.final_activation = nn.Softmax(dim=1)
 
     def forward(self, x):
+        """
+        Forward pass of the Improved 3D UNet.
+
+        Arguments:
+            x : Input tensor to the network
+        """
+        
         skip_connections = []
 
         # Encoder (down)
         for down in self.down_layers:
-            # Layer 1 [C:1->16, H:32->32, W:32->32, D:16->16]
-            # Layer 2 [C:16->32, H:32->16, W:32->16, D:16->8]
-            # Layer 3 [C:32->64, H:16->8, W:16->8, D:8->4]
-            # Layer 4 [C:64->128, H:8->4, W:8->4, D:4->2]
-            # Layer 5 [C:128->256, H:4->2, W:4->2, D:2->1]
             x = down(x) 
             skip_connections.append(x)
 
@@ -154,63 +276,36 @@ class ImprovedUNet(nn.Module):
         skip_connections = skip_connections[::-1]  # reverse for up path
 
         # Layer 5 - Up Path
-        # Upsampling once [C:256->128, H:2->4, W:2->4, D:1->2]
+        # Upsampling once 
         x = self.upsampling_layers[0](x)
-        # print("Layer 5 Up", x.shape)
 
         # Layer 4 - Up Path
-        # Concatenate [C:128->256, H:4->4, W:4->4, D:2->2]
-        # Localisation [C:256->128, H:4->4, W:4->4, D:2->2]
-        # Upsampling [C:128->64, H:4->8, W:4->8, D:2->4]
         x = torch.cat((skip_connections[1], x), dim=1)
         x = self.localisation_layers[1](x)
         x = self.upsampling_layers[1](x)
-        # print("Layer 4 Up:", x.shape)
 
         # Layer 3 - Up Path
-        # Concatenate [C:64->128, H:8->8, W:8->8, D:4->4]
-        # Localisation [C:128->64, H:8->8, W:8->8, D:4->4]
-        # Segmentation [C:64->6, H:8->8, W:8->8, D:4->4]
-        # Upsampling [C:64->32, H:8->16, W:8->16, D:4->8]
         x = torch.cat((skip_connections[2], x), dim=1)
         x = self.localisation_layers[2](x)
         seg_3 = self.segmentation_layer_3(x)
         x = self.upsampling_layers[2](x)
-        # print("Layer 3 Up:", x.shape)
 
         # Layer 2 - Up Path
-        # Concatenate [C:32->64, H:16->16, W:16->16, D:8->8]
-        # Localisation [C:64->32, H:16->16, W:16->16, D:8->8]
-        # Segmentation [C:32->6, H:16->16, W:16->16, D:8->8]
-        # Upsampling [C:32->16, H:16->32, W:16->32, D:8->16]
         x = torch.cat((skip_connections[3], x), dim=1)
         x = self.localisation_layers[3](x)
         seg_2 = self.segmentation_layer_2(x)
         x = self.upsampling_layers[3](x)
-        # print("Layer 2 Up:", x.shape)
 
         # Layer 1 - Up Path
-        # Concatenate [C:16->32, H:32->32, W:32->32, D:16->16]
-        # Convolution [C:32->32, H:32->32, W:32->32, D:16->16]
-        # Segmentation [C:32->6, H:32->32, W:32->32, D:16->16]
         x = torch.cat((skip_connections[4], x), dim=1)
         x = self.final_conv(x)
         seg_1 = self.segmentation_layer_1(x)
-        # print("Layer 1 Up:", x.shape)
-
-        # print("Combining Segmentation Layers:")
-        # print("Segmentation 3:", seg_3.shape)
-        # print("Segmentation 2:", seg_2.shape)
-        # print("Segmentation 1:", seg_1.shape)
 
         # Upsample Segmentation Maps
         seg_3_upsampled = self.segmentation_layer_3_upsample(seg_3)
         seg_2_3 = seg_2 + seg_3_upsampled 
         seg_2_3_upsampled = self.segmentation_layer_2_3_upsample(seg_2_3)
         final_seg = seg_1 + seg_2_3_upsampled
-
-        # print("Final Segmentation Upsampling:")
-        # print("Segmentation Upsampled:", final_seg.shape)
 
         # Final Convolution and Softmax
         return self.final_activation(final_seg)
