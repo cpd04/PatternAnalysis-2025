@@ -18,7 +18,6 @@ import torch.nn.functional as F
 
 import numpy as np
 import os
-import matplotlib.pyplot as plt
 import wandb
 
 from modules import ImprovedUNet
@@ -91,7 +90,7 @@ def train_model():
     """
     # Start a new run
     wandb.init(project="COMP3710-training",
-                name="experiment-2",
+                name="transform_experiment_3D_uNet",
                 config={
                     "learning_rate": LEARNING_RATE,
                     "epochs": EPOCHS,
@@ -113,6 +112,7 @@ def train_model():
                                                             validation_split=0.15,
                                                             batch_size=BATCH_SIZE,
                                                             downsample=True,
+                                                            transform_flag=True,
                                                             debugging_mode=False)
     
     # Visualise some inputs and add to W&B

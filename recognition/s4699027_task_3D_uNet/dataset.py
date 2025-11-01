@@ -175,7 +175,8 @@ def create_loader(image_list, label_list, batch_size=4, downsample=True,
 
 def load_prostate_data(data_file_path, train_data=1, validation_data=1, 
                        test_data=1, train_split=0.7, validation_split=0.15,
-                        batch_size=4, downsample=True, debugging_mode=False):
+                        batch_size=4, downsample=True, transform_flag=False,
+                          debugging_mode=False):
     '''
     Load the prostate MRI data in the NIFTI format for training and testing. Data
     is augmented appropriately for better generalisation performance. 
@@ -241,7 +242,7 @@ def load_prostate_data(data_file_path, train_data=1, validation_data=1,
         train_loader = create_loader(x_train_names, y_train_names, 
                                      batch_size=batch_size, reduced_shape=debugging_mode,
                                      downsample=downsample,
-                                     transform_flag=False,
+                                     transform_flag=transform_flag,
                                      shuffle=True)
         loaders[0] = train_loader
 
@@ -254,7 +255,7 @@ def load_prostate_data(data_file_path, train_data=1, validation_data=1,
                                                batch_size=batch_size, 
                                                reduced_shape=debugging_mode, 
                                                downsample=downsample,
-                                               transform_flag=False,
+                                               transform_flag=transform_flag,
                                                shuffle=True)
         loaders[1] = validation_data_loader
 
