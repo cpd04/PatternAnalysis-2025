@@ -25,8 +25,9 @@ import predict
 
 # Parameters for Training
 BATCH_SIZE=2
-EPOCHS=20
+EPOCHS=30
 LEARNING_RATE=4e-4
+LEARNING_RATE_MIN=1e-4
 MODEL_PATH = os.path.join("./models/")
 VISUAL_PATH_INPUTS = os.path.join("./visualisation/inputs/")
 VISUAL_PATH_VALIDATION = os.path.join("./visualisation/validation/")
@@ -117,7 +118,7 @@ def train_model():
     """
     # Start a new run
     wandb.init(project="COMP3710-training",
-                name="transform_experiment_3D_uNet",
+                name="transformed_improved_3D_Unet_full_data",
                 config={
                     "learning_rate": LEARNING_RATE,
                     "epochs": EPOCHS,
@@ -138,7 +139,7 @@ def train_model():
                                                             train_split=0.7, 
                                                             validation_split=0.15,
                                                             batch_size=BATCH_SIZE,
-                                                            downsample=True,
+                                                            downsample=False,
                                                             transform_flag=True,
                                                             debugging_mode=False)
     
@@ -153,7 +154,7 @@ def train_model():
     model = ImprovedUNet(in_channels=1, out_channels=6).to(device, dtype=torch.float32)
     criterion = SoftDiceLoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS, eta_min=5e-5)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS, eta_min=LEARNING_RATE_MIN)
 
     # Print model parameters
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -201,16 +202,28 @@ def train_model():
 
             val_loss /= len(validation_loader.dataset)
 
+            # Check DICE scores on validation set
+            dice_scores, multi_dsc = predict.evaluate_unet(model, validation_loader, device=device)
+
+            # Log DICE scores to W&B
+            for cls, dsc in enumerate(dice_scores):
+                wandb.log({f"validation/dice_score/class_{cls}": dsc, "epoch": epoch+1})
+            wandb.log({"validation/dice_score/multiclass": multi_dsc, "epoch": epoch+1})
+
         if val_loss is not None:
             print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {avg_loss:.4f}, Val Loss: {val_loss:.4f}")
         else:
-            print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {avg_loss:.4f}") 
-        
+            print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {avg_loss:.4f}")
+
+        # Print DICE scores
+        print(f"Multiclass Dice Score on Validation Set: {multi_dsc:.4f}")
+
         # Log to W&B
         wandb.log({
             "training/loss": avg_loss,
             "validation/loss": val_loss,
-            "learning_rate": scheduler.get_last_lr()[0]
+            "learning_rate": scheduler.get_last_lr()[0],
+            "epoch": epoch+1,
         })
 
         # Visualise predictions on a sample from validation set
@@ -238,11 +251,15 @@ def train_model():
     print(f"Trained model saved at {model_path_dir}")
 
     # Evaluate on validation set
-    rice_score = predict.evaluate_unet(model, test_loader, device=device)
+    dice_class, multi_dsc = predict.evaluate_unet(model, test_loader, device=device)
     print("Average Dice Score per class on Test Set:")
-    for cls, dsc in enumerate(rice_score):
+    
+    for cls, dsc in enumerate(dice_class):
         print(f"  Class {cls}: {dsc:.4f}")
         wandb.log({f"test/dice_score/class_{cls}": dsc})
+
+    print(f"Multiclass Dice Score on Test Set: {multi_dsc:.4f}")
+    wandb.log({"test/dice_score/multiclass": multi_dsc})
     
     # Visualise predictions on a sample image
     output_paths = os.path.join(os.path.dirname(__file__), VISUAL_PATH_OUTPUTS)

@@ -7,6 +7,7 @@ are developed in the Nifti file format.
 """
 
 # Import necessary libraries
+import random
 import utils
 import os
 import torch
@@ -175,29 +176,26 @@ def create_loader(image_list, label_list, batch_size=4, downsample=True,
         # List of Transforms
         flip_ap = tio.RandomFlip(axes=['anteroposterior'], flip_probability=0.5)
         flip_lr = tio.RandomFlip(axes=['lateral'], flip_probability=0.5)
-        blur = tio.RandomBlur(p=0.1)
-        noise = tio.RandomNoise(mean=128, std=10)
+        noise = tio.RandomNoise(mean=0.0, std=(0.001, 0.01), p=0.5)
+        blur = tio.RandomBlur(std=(0.1, 0.5), p=0.25)
+        gamma = tio.RandomGamma(log_gamma=(-0.2, 0.2), p=0.25)
+        clamp = tio.Clamp(out_min=0.0, out_max=1.0) # For noise being weird\
         
-        # Data augmentation (that are probably good):
-        # Flip data tio.RandomFlip(axes=['inferior-superior'], flip_probability=1.0), random_flip(fpg_ras)
-        # Rotate data - No option in tio, can just do multiple flips to achieve same result
-        # Add noise add_noise = tio.RandomNoise(std=0.5), standard = standardize(fpg_ras), noisy = add_noise(standard)
-        # Add SMALL blur - tio.RandomBlur(), blur(fpg_ras)
-        # Can combine with composition - tio.Compose([transforms])
-
-        # Data augmentation (that I wont include):
-        # Crop and Pad tio.CropOrPad(target_shape=(128, 128, 64)) - Preprocessing technique
-        # Random affine or elastic transformation
-        # Random bias field artifact
-        # Random motion artifact
-        # Random spike artifact
-        # Random ghosting artifact
+        elastic = tio.RandomElasticDeformation(
+            num_control_points=11,    
+            max_displacement=3.0,    
+            locked_borders=True,     # keep borders stable
+            p=0.2                    # 20% probability
+        )
 
         transforms = tio.Compose([
             flip_ap,
             flip_lr,
-            # blur,
-            # noise,
+            elastic,
+            noise,
+            blur,
+            gamma,
+            clamp,
         ])
 
         # Apply transforms

@@ -88,14 +88,9 @@ def evaluate_unet(model, loader, device="cuda"):
 
     # Compute average Dice Score
     avg_dsc = [t / count for t in total_dsc]
+    multi_dsc = sum(avg_dsc) / len(avg_dsc)
 
-    print("Dice per class:")
-    for cls, dsc in enumerate(avg_dsc):
-        print(f"  Class {cls}: {dsc:.4f}")
-
-    print(f"Multiclass Dice Score: {sum(avg_dsc) / len(avg_dsc):.4f}")
-
-    return avg_dsc
+    return avg_dsc, multi_dsc
 
 def predict_single_image(model, loader, data_path, device="cuda"):
     """
@@ -177,8 +172,15 @@ def load_and_predict_model(model_path, data_path, visual_path, device="cuda"):
                                             debugging_mode=False)
 
     # Perform prediction
-    evaluate_unet(model, test_loader, device=device)
+    avg_dsc, multi_dsc = evaluate_unet(model, test_loader, device=device)
     predict_single_image(model, test_loader, visual_path, device=device)
+
+    # Print performance metrics
+    print("Dice Scores per Class on Test Set:")
+    for cls, dsc in enumerate(avg_dsc):
+        print(f"  Class {cls}: {dsc:.4f}")
+
+    print(f"Multi-class Dice Score on Test Set: {multi_dsc:.4f}")
 
 if __name__ == "__main__":
     # Define paths

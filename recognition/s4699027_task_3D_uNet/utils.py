@@ -58,7 +58,7 @@ def generate_gif(volume, out_path, fps=16, cmap_name="viridis"):
     # Remove channel dimension
     volume = volume[0]  
     # Normalise to 0-255
-    volume_norm = ((volume - volume.min()) / (volume.max() - volume.min()) * 255).astype(np.uint8)
+    volume_norm = (volume * 255).astype(np.uint8)
 
     # Select a colormap
     cmap = matplotlib.colormaps[cmap_name]

@@ -173,8 +173,6 @@ An example visualistation of the output shows the effectiveness of the model. No
 ![Test Set Image](./assets/test_set_1.gif)  
 
 
-
-
 ## References
 Isensee, P. Kickingereder, W. Wick, M. Bendszus, and K. H. Maier-Hein, “Brain Tumor Segmentation
 and Radiomics Survival Prediction: Contribution to the BRATS 2017 Challenge,” Feb. 2018. [Online] 
