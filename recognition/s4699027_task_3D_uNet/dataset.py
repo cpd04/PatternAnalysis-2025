@@ -180,18 +180,10 @@ def create_loader(image_list, label_list, batch_size=4, downsample=True,
         blur = tio.RandomBlur(std=(0.1, 0.5), p=0.25)
         gamma = tio.RandomGamma(log_gamma=(-0.2, 0.2), p=0.25)
         clamp = tio.Clamp(out_min=0.0, out_max=1.0) # For noise being weird\
-        
-        elastic = tio.RandomElasticDeformation(
-            num_control_points=11,    
-            max_displacement=3.0,    
-            locked_borders=True,     # keep borders stable
-            p=0.2                    # 20% probability
-        )
 
         transforms = tio.Compose([
             flip_ap,
             flip_lr,
-            elastic,
             noise,
             blur,
             gamma,
