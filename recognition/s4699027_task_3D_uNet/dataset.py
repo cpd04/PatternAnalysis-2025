@@ -7,7 +7,6 @@ are developed in the Nifti file format.
 """
 
 # Import necessary libraries
-import random
 import utils
 import os
 import torch
