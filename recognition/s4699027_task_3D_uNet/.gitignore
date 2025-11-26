@@ -3,3 +3,4 @@ data/
 models/
 visualisation/
 wandb/
+__pycache__/
